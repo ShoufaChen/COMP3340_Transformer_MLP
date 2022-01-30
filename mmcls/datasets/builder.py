@@ -48,8 +48,8 @@ def build_dataloader(dataset,
                      shuffle=True,
                      round_up=True,
                      seed=None,
-                     pin_memory=True,
-                     persistent_workers=True,
+                     pin_memory=False,
+                     persistent_workers=False,
                      sampler_cfg=None,
                      **kwargs):
     """Build PyTorch DataLoader.
