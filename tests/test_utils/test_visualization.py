@@ -1,10 +1,10 @@
 # Copyright (c) Open-MMLab. All rights reserved.
 import os
 import os.path as osp
-import shutil
 import tempfile
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock
 
+import matplotlib.pyplot as plt
 import mmcv
 import numpy as np
 import pytest
@@ -30,7 +30,7 @@ def test_color():
 
 
 def test_imshow_infos():
-    tmp_dir = osp.join(tempfile.gettempdir(), 'infos_image')
+    tmp_dir = osp.join(tempfile.gettempdir(), 'image_infos')
     tmp_filename = osp.join(tmp_dir, 'image.jpg')
 
     image = np.ones((10, 10, 3), np.uint8)
@@ -51,40 +51,50 @@ def test_imshow_infos():
     assert image.shape == out_image.shape[:2]
     os.remove(tmp_filename)
 
-    # test show=True
-    image = np.ones((10, 10, 3), np.uint8)
+
+def test_figure_context_manager():
+    # test show multiple images with the same figure.
+    images = [
+        np.random.randint(0, 255, (100, 100, 3), np.uint8) for _ in range(5)
+    ]
     result = {'pred_label': 1, 'pred_class': 'bird', 'pred_score': 0.98}
 
-    def save_args(*args, **kwargs):
-        args_list = ['args']
-        args_list += [
-            str(arg) for arg in args if isinstance(arg, (str, bool, int))
-        ]
-        args_list += [
-            f'{k}-{v}' for k, v in kwargs.items()
-            if isinstance(v, (str, bool, int))
-        ]
-        out_path = osp.join(tmp_dir, '_'.join(args_list))
-        with open(out_path, 'w') as f:
-            f.write('test')
+    with vis.ImshowInfosContextManager() as manager:
+        fig_show = manager.fig_show
+        fig_save = manager.fig_save
 
-    with patch('matplotlib.pyplot.show', save_args), \
-            patch('matplotlib.pyplot.pause', save_args):
-        vis.imshow_infos(image, result, show=True, wait_time=5)
-        assert osp.exists(osp.join(tmp_dir, 'args_block-False'))
-        assert osp.exists(osp.join(tmp_dir, 'args_5'))
+        # Test time out
+        fig_show.canvas.start_event_loop = MagicMock()
+        fig_show.canvas.end_event_loop = MagicMock()
+        for image in images:
+            ret, out_image = manager.put_img_infos(image, result, show=True)
+            assert ret == 0
+            assert image.shape == out_image.shape
+            assert not np.allclose(image, out_image)
+            assert fig_show is manager.fig_show
+            assert fig_save is manager.fig_save
 
-        vis.imshow_infos(image, result, show=True, wait_time=0)
-        assert osp.exists(osp.join(tmp_dir, 'args'))
+        # Test continue key
+        fig_show.canvas.start_event_loop = (
+            lambda _: fig_show.canvas.key_press_event(' '))
+        for image in images:
+            ret, out_image = manager.put_img_infos(image, result, show=True)
+            assert ret == 0
+            assert image.shape == out_image.shape
+            assert not np.allclose(image, out_image)
+            assert fig_show is manager.fig_show
+            assert fig_save is manager.fig_save
 
-    # test adaptive dpi
-    def mock_fig_manager():
-        fig_manager = Mock()
-        fig_manager.window.winfo_screenheight = Mock(return_value=1440)
-        return fig_manager
+        # Test close figure manually
+        fig_show = manager.fig_show
 
-    with patch('matplotlib.pyplot.get_current_fig_manager',
-               mock_fig_manager), patch('matplotlib.pyplot.show'):
-        vis.imshow_infos(image, result, show=True)
+        def destroy(*_, **__):
+            fig_show.canvas.close_event()
+            plt.close(fig_show)
 
-    shutil.rmtree(tmp_dir)
+        fig_show.canvas.start_event_loop = destroy
+        ret, out_image = manager.put_img_infos(images[0], result, show=True)
+        assert ret == 1
+        assert image.shape == out_image.shape
+        assert not np.allclose(image, out_image)
+        assert fig_save is manager.fig_save

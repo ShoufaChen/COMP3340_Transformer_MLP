@@ -153,7 +153,7 @@ class RandomResizedCrop(object):
             to the original image. Defaults to (0.08, 1.0).
         ratio (tuple): Range of the random aspect ratio of the cropped image
             compared to the original image. Defaults to (3. / 4., 4. / 3.).
-        max_attempts (int): Maxinum number of attempts before falling back to
+        max_attempts (int): Maximum number of attempts before falling back to
             Central Crop. Defaults to 10.
         efficientnet_style (bool): Whether to use efficientnet style Random
             ResizedCrop. Defaults to False.
@@ -219,7 +219,7 @@ class RandomResizedCrop(object):
                 compared to the original image size.
             ratio (tuple): Range of the random aspect ratio of the cropped
                 image compared to the original image area.
-            max_attempts (int): Maxinum number of attempts before falling back
+            max_attempts (int): Maximum number of attempts before falling back
                 to central crop. Defaults to 10.
 
         Returns:
@@ -281,7 +281,7 @@ class RandomResizedCrop(object):
                 compared to the original image size.
             ratio (tuple): Range of the random aspect ratio of the cropped
                 image compared to the original image area.
-            max_attempts (int): Maxinum number of attempts before falling back
+            max_attempts (int): Maximum number of attempts before falling back
                 to central crop. Defaults to 10.
             min_covered (Number): Minimum ratio of the cropped area to the
                 original area. Only valid if efficientnet_style is true.
@@ -313,7 +313,7 @@ class RandomResizedCrop(object):
             max_target_height = min(max_target_height, height)
             min_target_height = min(max_target_height, min_target_height)
 
-            # slightly differs from tf inplementation
+            # slightly differs from tf implementation
             target_height = int(
                 round(random.uniform(min_target_height, max_target_height)))
             target_width = int(round(target_height * aspect_ratio))
@@ -613,6 +613,58 @@ class RandomErasing(object):
 
 
 @PIPELINES.register_module()
+class Pad(object):
+    """Pad images.
+
+    Args:
+        size (tuple[int] | None): Expected padding size (h, w). Conflicts with
+                pad_to_square. Defaults to None.
+        pad_to_square (bool): Pad any image to square shape. Defaults to False.
+        pad_val (Number | Sequence[Number]): Values to be filled in padding
+            areas when padding_mode is 'constant'. Default to 0.
+        padding_mode (str): Type of padding. Should be: constant, edge,
+            reflect or symmetric. Default to "constant".
+    """
+
+    def __init__(self,
+                 size=None,
+                 pad_to_square=False,
+                 pad_val=0,
+                 padding_mode='constant'):
+        assert (size is None) ^ (pad_to_square is False), \
+            'Only one of [size, pad_to_square] should be given, ' \
+            f'but get {(size is not None) + (pad_to_square is not False)}'
+        self.size = size
+        self.pad_to_square = pad_to_square
+        self.pad_val = pad_val
+        self.padding_mode = padding_mode
+
+    def __call__(self, results):
+        for key in results.get('img_fields', ['img']):
+            img = results[key]
+            if self.pad_to_square:
+                target_size = tuple(
+                    max(img.shape[0], img.shape[1]) for _ in range(2))
+            else:
+                target_size = self.size
+            img = mmcv.impad(
+                img,
+                shape=target_size,
+                pad_val=self.pad_val,
+                padding_mode=self.padding_mode)
+            results[key] = img
+            results['img_shape'] = img.shape
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(size={self.size}, '
+        repr_str += f'(pad_val={self.pad_val}, '
+        repr_str += f'padding_mode={self.padding_mode})'
+        return repr_str
+
+
+@PIPELINES.register_module()
 class Resize(object):
     """Resize images.
 
@@ -620,35 +672,49 @@ class Resize(object):
         size (int | tuple): Images scales for resizing (h, w).
             When size is int, the default behavior is to resize an image
             to (size, size). When size is tuple and the second value is -1,
-            the short edge of an image is resized to its first value.
-            For example, when size is 224, the image is resized to 224x224.
-            When size is (224, -1), the short side is resized to 224 and the
-            other side is computed based on the short side, maintaining the
-            aspect ratio.
-        interpolation (str): Interpolation method, accepted values are
-            "nearest", "bilinear", "bicubic", "area", "lanczos".
+            the image will be resized according to adaptive_side. For example,
+            when size is 224, the image is resized to 224x224. When size is
+            (224, -1) and adaptive_size is "short", the short side is resized
+            to 224 and the other side is computed based on the short side,
+            maintaining the aspect ratio.
+        interpolation (str): Interpolation method. For "cv2" backend, accepted
+            values are "nearest", "bilinear", "bicubic", "area", "lanczos". For
+            "pillow" backend, accepted values are "nearest", "bilinear",
+            "bicubic", "box", "lanczos", "hamming".
             More details can be found in `mmcv.image.geometric`.
+        adaptive_side(str): Adaptive resize policy, accepted values are
+            "short", "long", "height", "width". Default to "short".
         backend (str): The image resize backend type, accepted values are
             `cv2` and `pillow`. Default: `cv2`.
     """
 
-    def __init__(self, size, interpolation='bilinear', backend='cv2'):
+    def __init__(self,
+                 size,
+                 interpolation='bilinear',
+                 adaptive_side='short',
+                 backend='cv2'):
         assert isinstance(size, int) or (isinstance(size, tuple)
                                          and len(size) == 2)
-        self.resize_w_short_side = False
+        assert adaptive_side in {'short', 'long', 'height', 'width'}
+
+        self.adaptive_side = adaptive_side
+        self.adaptive_resize = False
         if isinstance(size, int):
             assert size > 0
             size = (size, size)
         else:
             assert size[0] > 0 and (size[1] > 0 or size[1] == -1)
             if size[1] == -1:
-                self.resize_w_short_side = True
-        assert interpolation in ('nearest', 'bilinear', 'bicubic', 'area',
-                                 'lanczos')
+                self.adaptive_resize = True
         if backend not in ['cv2', 'pillow']:
             raise ValueError(f'backend: {backend} is not supported for resize.'
                              'Supported backends are "cv2", "pillow"')
-
+        if backend == 'cv2':
+            assert interpolation in ('nearest', 'bilinear', 'bicubic', 'area',
+                                     'lanczos')
+        else:
+            assert interpolation in ('nearest', 'bilinear', 'bicubic', 'box',
+                                     'lanczos', 'hamming')
         self.size = size
         self.interpolation = interpolation
         self.backend = backend
@@ -657,19 +723,29 @@ class Resize(object):
         for key in results.get('img_fields', ['img']):
             img = results[key]
             ignore_resize = False
-            if self.resize_w_short_side:
+            if self.adaptive_resize:
                 h, w = img.shape[:2]
-                short_side = self.size[0]
-                if (w <= h and w == short_side) or (h <= w
-                                                    and h == short_side):
+                target_size = self.size[0]
+
+                condition_ignore_resize = {
+                    'short': min(h, w) == target_size,
+                    'long': max(h, w) == target_size,
+                    'height': h == target_size,
+                    'width': w == target_size
+                }
+
+                if condition_ignore_resize[self.adaptive_side]:
                     ignore_resize = True
+                elif any([
+                        self.adaptive_side == 'short' and w < h,
+                        self.adaptive_side == 'long' and w > h,
+                        self.adaptive_side == 'width',
+                ]):
+                    width = target_size
+                    height = int(target_size * h / w)
                 else:
-                    if w < h:
-                        width = short_side
-                        height = int(short_side * h / w)
-                    else:
-                        height = short_side
-                        width = int(short_side * w / h)
+                    height = target_size
+                    width = int(target_size * w / h)
             else:
                 height, width = self.size
             if not ignore_resize:
@@ -895,7 +971,7 @@ class Lighting(object):
         eigvec (list[list]): the eigenvector of the convariance matrix of pixel
             values, respectively.
         alphastd (float): The standard deviation for distribution of alpha.
-            Dafaults to 0.1
+            Defaults to 0.1
         to_rgb (bool): Whether to convert img to rgb.
     """
 
