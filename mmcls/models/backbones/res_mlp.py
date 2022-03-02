@@ -116,10 +116,7 @@ class ResBlock(BaseModule):
         pass
 
     def forward(self, x):
-        out = self.affine_norm1(x)
-        out = self.token_mix(out)
-        x = x + out
-
+        x = x + self.token_mix(self.affine_norm1(x))
         x = x + self.dropout_layer(self.ls * self.mlp_channel(self.affine_norm2(x)))
         return x
 
