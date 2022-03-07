@@ -122,7 +122,7 @@ class ResBlock(BaseModule):
 
 
 @BACKBONES.register_module()
-class MlpMixer(BaseBackbone):
+class ResMlp(BaseBackbone):
     def __init__(self):
         pass
     def forward(self,x):
