@@ -85,7 +85,15 @@ Results and models are available in the [model zoo](docs/en/model_zoo.md).
 
 ## Installation
 
-Please refer to [install.md](docs/en/install.md) for installation and dataset preparation.
+As for a quick start, if the conda is available, one may directly run:
+```sh
+conda env create -n env.yml
+conda env activate mmcls_project
+pip install -e . 
+```
+
+For details, you may refer to [install.md](docs/en/install.md) for installation and dataset preparation.
+
 
 ## Getting Started
 Please see [getting_started.md](docs/en/getting_started.md) for the basic usage of MMClassification. There are also tutorials:
