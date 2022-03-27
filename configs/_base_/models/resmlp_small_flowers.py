@@ -3,8 +3,7 @@ model = dict(
     type='ImageClassifier',
     backbone=dict(
         type='ResMlp',
-        #TODO: the following initialization parameters may need changes
-        arch='b',
+        arch='s',
         img_size=224,
         patch_size=16,
         drop_rate=0.1,

@@ -8,7 +8,7 @@ from .mobilenet_v2 import MobileNetV2
 from .mobilenet_v3 import MobileNetV3
 from .regnet import RegNet
 from .repvgg import RepVGG
-from .res_mlp import ResBlock, ResMlp
+from .res_mlp import ResMlp
 from .res2net import Res2Net
 from .resnest import ResNeSt
 from .resnet import ResNet, ResNetV1d
@@ -30,6 +30,5 @@ __all__ = [
     'ResNeSt', 'ResNet_CIFAR', 'SEResNet', 'SEResNeXt', 'ShuffleNetV1',
     'ShuffleNetV2', 'MobileNetV2', 'MobileNetV3', 'VisionTransformer',
     'SwinTransformer', 'TNT', 'TIMMBackbone', 'T2T_ViT', 'Res2Net', 'RepVGG',
-    'Conformer', 'MlpMixer', 'DistilledVisionTransformer',
-    'ResBlock', 'ResMlp'# ResMLP relevant
+    'Conformer', 'MlpMixer', 'DistilledVisionTransformer','ResMlp'
 ]
