@@ -142,3 +142,4 @@ data = dict(
         pipeline=test_pipeline))
 evaluation = dict(interval=1, metric='accuracy')
 load_from = "/userhome/30/zhlyu/cogito/vit-base-p16_3rdparty_pt-64xb64_in1k-224_20210928-02284250.pth"
+

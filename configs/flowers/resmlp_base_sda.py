@@ -141,3 +141,4 @@ data = dict(
         ann_file='data/flowers/meta/val.txt',
         pipeline=test_pipeline))
 evaluation = dict(interval=1, metric='accuracy')
+
