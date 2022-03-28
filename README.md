@@ -149,3 +149,16 @@ We wish that the toolbox and benchmark could serve the growing research communit
 - [MMFlow](https://github.com/open-mmlab/mmflow) OpenMMLab optical flow toolbox and benchmark.
 - [MMFewShot](https://github.com/open-mmlab/mmfewshot): OpenMMLab FewShot Learning Toolbox and Benchmark.
 - [MMHuman3D](https://github.com/open-mmlab/mmhuman3d): OpenMMLab 3D Human Parametric Model Toolbox and Benchmark.
+
+
+## ResMLP:
+
+Before training ResMLP, you need to recompile to register the ResMLP backbone:
+```
+pip install -e .
+```
+Then train model using configs in "configs/flowers/resmlp_..."
+
+Notes on model architecture:
+ - For default patch size = 16x16, embed_dim = 384. For patch size = 8x8, embed_dim = 768
+ - Small ResMLP has 12 blocks, base ResMLP has 24 blocks.
