@@ -168,14 +168,16 @@ class ResMlp(BaseBackbone):
                 'channels_mlp_dims': 1536,
             }),
         **dict.fromkeys(
-            ['s-8', 'small-patch8'], {
+            ['s768', 'small-768'], {
                 'embed_dims': 768,
-                'num_layers': 24,
+                'num_layers': 12,
+                'channels_mlp_dims': 3072,
             }),
         **dict.fromkeys(
-            ['b-8', 'base-patch8'], {
+            ['b768', 'base-768'], {
                 'embed_dims': 768,
                 'num_layers': 24,
+                'channels_mlp_dims': 3072,
             }),
     }
 
