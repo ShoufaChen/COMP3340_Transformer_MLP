@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from mmcv.cnn import NORM_LAYERS, build_activation_layer, build_norm_layer
 from mmcv.cnn.bricks.drop import build_dropout
+from mmcv.cnn.bricks.transformer import FFN
 from mmcv.runner.base_module import BaseModule, ModuleList
 
 from ..builder import BACKBONES
@@ -12,34 +13,17 @@ from .base_backbone import BaseBackbone
 class Affine(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.alpha = nn.Parameter(torch.ones([1, 1, dim]))
-        self.beta = nn.Parameter(torch.zeros([1, 1, dim]))
+        self.alpha = nn.Parameter(torch.ones(dim))
+        self.beta = nn.Parameter(torch.zeros(dim))
 
     def forward(self, x):
         return x * self.alpha + self.beta
 
-class ResTokenMix(BaseModule):
-    def __init__(self, num_token, embed_dim, init_values=1e-4, drop=0., drop_path_rate=0., init_cfg=None):
-        """
-        note there is not dropout, only dropout path
-        """
-        super(ResTokenMix, self).__init__(init_cfg=init_cfg)
-        self.num_token = num_token
-        self.linear_tokens =nn.Linear(num_token,num_token)
-
-        self.ls = nn.Parameter(init_values * torch.ones(embed_dim))
-
-        if drop_path_rate>0:
-            dropout_layer = dict(type='DropPath', drop_prob=drop_path_rate)
-        else:
-            dropout_layer = None
-        self.dropout_layer = build_dropout(dropout_layer) if dropout_layer else torch.nn.Identity()
-
-    def forward(self,x):
-        return self.dropout_layer(self.ls * (self.linear_tokens(x.transpose(1, 2))).transpose(1, 2))
-
 
 class ResMlpChannel(BaseModule):
+    """
+    Same as FFN
+    """
     def __init__(self, embed_dim, channel_dim, act_cfg=dict(type='GELU'), drop=0., init_cfg=None):
         super(ResMlpChannel, self).__init__(init_cfg=init_cfg)
 
@@ -92,35 +76,35 @@ class ResMLPBlock(BaseModule):
         super(ResMLPBlock, self).__init__(init_cfg= init_cfg)
 
         self.affine_norm1 = Affine(dim=embed_dims)
-
-        self.token_mix = ResTokenMix(num_tokens, embed_dims, init_values=init_values, drop=drop_rate,
-                                     drop_path_rate=drop_path_rate, init_cfg= init_cfg)
-
+        self.token_mix = nn.Linear(num_tokens,num_tokens)
         self.affine_norm2 = Affine(dim=embed_dims)
 
-        self.channel_mix = ResMlpChannel(embed_dims, channels_mlp_dims, act_cfg = act_cfg, drop= drop_rate)
+        self.channel_mix = FFN(embed_dims=embed_dims,
+                                feedforward_channels=channels_mlp_dims,
+                                num_fcs=2,
+                                ffn_drop=drop_rate,
+                                add_identity=False,
+                                act_cfg=act_cfg)
 
-        self.ls = nn.Parameter(init_values * torch.ones(embed_dims))
+        self.gamma1 = nn.Parameter(init_values * torch.ones(embed_dims),requires_grad=True)
+        self.gamma2 = nn.Parameter(init_values * torch.ones(embed_dims), requires_grad=True)
         if drop_path_rate>0:
             dropout_layer = dict(type='DropPath', drop_prob=drop_path_rate)
         else:
             dropout_layer = None
         self.dropout_layer = build_dropout(dropout_layer) if dropout_layer else torch.nn.Identity()
 
-    def init_weights(self):
-        super(ResMLPBlock, self).init_weights()
-        for m in self.token_mix.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.normal_(m.bias, std=1e-6)
-        for m in self.channel_mix.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.normal_(m.bias, std=1e-6)
+        self.apply(self._init_weights)
+
+    def _init_weights(self,m):
+        if isinstance(m, nn.Linear):
+            nn.init.trunc_normal_(m.weight,std=0.02)
+            if m.bias is not None:
+                nn.init.constant(m.bias,0)
 
     def forward(self, x):
-        x = x + self.token_mix(self.affine_norm1(x))
-        x = x + self.dropout_layer(self.ls * self.channel_mix(self.affine_norm2(x)))
+        x = x + self.dropout_layer(self.gamma1 * self.token_mix(self.affine_norm1(x).transpose(1,2)).transpose(1,2))
+        x = x + self.dropout_layer(self.gamma2 * self.channel_mix(self.affine_norm2(x)))
         return x
 
 
