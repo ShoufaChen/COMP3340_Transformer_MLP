@@ -16,7 +16,7 @@ paramwise_cfg = dict(
 # for batch in each gpu is 128, 8 gpu
 optimizer = dict(
     type='AdamW',
-    lr=0.001,
+    lr=5e-4 * 16 / 128,
     weight_decay=0.05,
     eps=1e-8,
     betas=(0.9, 0.999),
