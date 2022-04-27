@@ -68,11 +68,9 @@ def generate_PCA_graph(embeddings, data, output_dir):
     ax = sns.scatterplot(x="pc1", y="pc2", data=data_df, hue='label', size="is_true")
     sns.set(style='darkgrid', )
     ax.legend(loc=2, bbox_to_anchor=(1.1, 1.05), borderaxespad=0.)
-    plt.show()
 
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_dir+'PCA.pdf', dpi=300)
+    fig = ax.get_figure()
+    fig.savefig('PCA.pdf', dpi=300, bbox_inches='tight')
 
 
 def main():
