@@ -1,7 +1,7 @@
 _base_ = [
-    '../_base_/models/vit_base_flowers.py',
+    '../_base_/models/resmlp_small_flowers_768.py',
     '../_base_/datasets/flowers_bs32.py',
-    '../_base_/schedules/flowers_bs32.py',
+    '../_base_/schedules/flowers_bs32_lamb.py',
     '../_base_/default_runtime.py'
 ]
 
@@ -123,11 +123,12 @@ test_pipeline = [
     dict(type='Collect', keys=['img'])
 ]
 data = dict(
-    samples_per_gpu=16,  # modify
-    workers_per_gpu=2,
+    samples_per_gpu=32,  # modify
+    workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         data_prefix='data/flowers/train',
+        ann_file='data/flowers/meta/train.txt',
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
@@ -141,3 +142,4 @@ data = dict(
         ann_file='data/flowers/meta/val.txt',
         pipeline=test_pipeline))
 evaluation = dict(interval=1, metric='accuracy')
+
