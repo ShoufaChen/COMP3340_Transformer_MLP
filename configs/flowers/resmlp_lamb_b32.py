@@ -1,8 +1,8 @@
 model = dict(
     type='ImageClassifier',
     backbone=dict(
-        type='VisionTransformer',
-        arch='b',
+        type='ResMlp',
+        arch='s768',
         img_size=224,
         patch_size=16,
         drop_rate=0.1,
@@ -13,14 +13,13 @@ model = dict(
                 mode='fan_in',
                 nonlinearity='linear')
         ]),
-    neck=None,
+    neck=dict(type='GlobalAveragePooling', dim=1),
     head=dict(
-        type='VisionTransformerClsHead',
+        type='LinearClsHead',
         num_classes=17,
-        in_channels=768,
-        loss=dict(
-            type='LabelSmoothLoss', label_smooth_val=0.1,
-            mode='classy_vision')))
+        in_channels=196,
+        loss=dict(type='CrossEntropyLoss', loss_weight=1.0),
+        topk=(1, 5)))
 dataset_type = 'Flowers'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
@@ -109,19 +108,7 @@ paramwise_cfg = dict(
         '.absolute_pos_embed': dict(decay_mult=0.0),
         '.relative_position_bias_table': dict(decay_mult=0.0)
     }))
-optimizer = dict(
-    type='AdamW',
-    lr=6.25e-05,
-    weight_decay=0.05,
-    eps=1e-08,
-    betas=(0.9, 0.999),
-    paramwise_cfg=dict(
-        norm_decay_mult=0.0,
-        bias_decay_mult=0.0,
-        custom_keys=dict({
-            '.absolute_pos_embed': dict(decay_mult=0.0),
-            '.relative_position_bias_table': dict(decay_mult=0.0)
-        })))
+optimizer = dict(type='Lamb', lr=0.005, weight_decay=0.2)
 optimizer_config = dict(grad_clip=dict(max_norm=5.0))
 lr_config = dict(
     policy='CosineAnnealing',
@@ -131,13 +118,13 @@ lr_config = dict(
     warmup_ratio=0.001,
     warmup_iters=100,
     warmup_by_epoch=False)
-runner = dict(type='EpochBasedRunner', max_epochs=100)
-checkpoint_config = dict(interval=30)
-log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
+runner = dict(type='EpochBasedRunner', max_epochs=200)
+checkpoint_config = dict(interval=20)
+log_config = dict(interval=10, hooks=[dict(type='TextLoggerHook')])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = "../common/vit_pertrain100.pth"
+load_from = None
 resume_from = None
 workflow = [('train', 1)]
-work_dir = './work_dirs/vit_pretrain_val'
+work_dir = './work_dirs/resmlp_s768_lamb_b32'
 gpu_ids = range(0, 1)
